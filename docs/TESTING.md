@@ -20,6 +20,7 @@
 | GitHub Actions Android | `.github/workflows/android.yml` | Passed: tests, lint, debug APK, artifact upload ([run](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241158)) | Install not run |
 | GitHub Actions desktop | `.github/workflows/desktop.yml` | Passed: Linux/Windows/macOS receiver builds and native backend tests ([run](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241171)) | Injection not run |
 | Release workflow | `.github/workflows/release.yml` | Passed for `v1.0.0`: published debug APK, Linux/Windows/macOS receivers, and `SHA256SUMS.txt` ([release](https://github.com/heyitssuzain/FluxPad/releases/tag/v1.0.0)) | Signed release not run |
+| Release APK integrity | Download `fluxpad-1.0.0-debug.apk`; compare SHA-256; `apksigner verify --print-certs` | SHA-256 matched `091831bd78e04426d185d75ec4088b9867f9227e0ba236e7ef8b9a1f75a32d8e`; debug certificate verified | Debug signing only |
 
 The temporary type-check stub is not part of the repository and is not a runtime shim. The final workspace uses the real crates.io `rusb` dependency and a real `Cargo.lock`.
 

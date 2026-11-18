@@ -56,6 +56,7 @@ Legend: ✅ done and verified in this environment · 🟡 implemented, not hardw
 | GitHub Actions desktop matrix | **Passed** in run [44250241171](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241171): Linux, Windows, and macOS receiver builds plus native backend unit tests. |
 | Debug APK signature | `apksigner verify --print-certs` passed; debug certificate only, not a release identity. |
 | Release workflow | **Passed** for tag `v1.0.0`: published [FLUXPAD v1.0.0](https://github.com/heyitssuzain/FluxPad/releases/tag/v1.0.0) with a debug APK, three receiver binaries, and `SHA256SUMS.txt`. Signing secrets were not configured, so the APK is the debug fallback. |
+| Release asset verification | Downloaded `fluxpad-1.0.0-debug.apk` from the release; SHA-256 matches `SHA256SUMS.txt` (`091831bd…32d8e`); `apksigner verify` passes with the Android debug certificate. |
 
 ## What is implemented
 
@@ -115,7 +116,7 @@ These are **not** passed. They are the next milestone.
 
 - [x] First GitHub Actions run succeeds (Android + Rust matrix).
 - [ ] Signed APK built from repository secrets.
-- [ ] `apksigner verify` and checksum verification on release assets.
+- [x] `apksigner verify` and checksum verification on the `v1.0.0` release APK (debug certificate).
 - [ ] Receiver binaries run `--help`/`--version` on their target OSes (CI builds them, but does not execute them).
 
 ## Known blockers and risks
