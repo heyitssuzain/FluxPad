@@ -1,0 +1,28 @@
+[package]
+name = "fluxpad-receiver"
+description = "Native FLUXPAD USB Companion receiver for Windows, Linux and macOS"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "fluxpad-receiver"
+path = "src/main.rs"
+
+[dependencies]
+fluxpad-protocol.workspace = true
+fluxpad-shared.workspace = true
+fluxpad-usb.workspace = true
+ctrlc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+fluxpad-windows.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+fluxpad-linux.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+fluxpad-macos.workspace = true

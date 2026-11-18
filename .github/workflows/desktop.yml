@@ -1,0 +1,77 @@
+name: Desktop receiver
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            artifact: fluxpad-receiver-linux-x86_64
+            binary: target/release/fluxpad-receiver
+          - name: windows-x86_64
+            os: windows-latest
+            artifact: fluxpad-receiver-windows-x86_64
+            binary: target/release/fluxpad-receiver.exe
+          - name: macos
+            os: macos-latest
+            artifact: fluxpad-receiver-macos
+            binary: target/release/fluxpad-receiver
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            libudev-dev
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+
+      - name: Protocol and shared tests
+        working-directory: desktop
+        run: cargo test -p fluxpad-protocol -p fluxpad-shared -p fluxpad-tests --locked
+
+      - name: Native backend unit tests
+        working-directory: desktop
+        run: cargo test -p fluxpad-windows -p fluxpad-linux -p fluxpad-macos --locked
+
+      - name: Build receiver
+        working-directory: desktop
+        run: cargo build --release -p fluxpad-receiver --locked
+
+      - name: Upload receiver binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: desktop/${{ matrix.binary }}
+          if-no-files-found: error
+          retention-days: 14

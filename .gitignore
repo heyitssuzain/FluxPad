@@ -1,0 +1,34 @@
+# Android / Gradle
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/core/*/build/
+android/local.properties
+android/keystore.properties
+android/*.jks
+android/*.keystore
+android/release.keystore
+captures/
+*.apk
+*.aab
+
+# Rust
+desktop/target/
+desktop/dist/
+dist/
+**/*.rs.bk
+
+# IDE / OS
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+*.log
+
+# Local secrets and scratch files
+.env
+.env.*
+*.pem
+*.p12

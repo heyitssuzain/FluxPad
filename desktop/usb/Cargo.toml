@@ -1,0 +1,14 @@
+[package]
+name = "fluxpad-usb"
+description = "Android Open Accessory host transport for the FLUXPAD receiver"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+fluxpad-protocol.workspace = true
+fluxpad-shared.workspace = true
+rusb.workspace = true

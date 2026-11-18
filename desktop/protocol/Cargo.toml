@@ -1,0 +1,17 @@
+[package]
+name = "fluxpad-protocol"
+description = "FLUXPAD USB Companion wire protocol and authentication primitives"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+hmac.workspace = true
+sha2.workspace = true
+pbkdf2.workspace = true
+rand.workspace = true
+hex.workspace = true
+subtle.workspace = true

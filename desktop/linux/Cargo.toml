@@ -1,0 +1,15 @@
+[package]
+name = "fluxpad-linux"
+description = "Linux uinput backend for FLUXPAD"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+fluxpad-shared.workspace = true
+
+[target.'cfg(target_os = "linux")'.dependencies]
+evdev = "0.13"

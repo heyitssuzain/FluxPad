@@ -1,0 +1,45 @@
+[workspace]
+resolver = "2"
+members = [
+    "protocol",
+    "shared",
+    "usb",
+    "windows",
+    "linux",
+    "macos",
+    "receiver",
+    "tests",
+]
+
+[workspace.package]
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.78"
+license = "Apache-2.0"
+repository = "https://github.com/heyitssuzain/FluxPad"
+authors = ["FLUXPAD contributors"]
+
+[workspace.dependencies]
+fluxpad-protocol = { path = "protocol" }
+fluxpad-shared = { path = "shared" }
+fluxpad-usb = { path = "usb" }
+fluxpad-windows = { path = "windows" }
+fluxpad-linux = { path = "linux" }
+fluxpad-macos = { path = "macos" }
+
+hmac = "0.12.1"
+sha2 = "0.10.8"
+pbkdf2 = { version = "0.12.2", default-features = false, features = ["hmac"] }
+rand = "0.8.5"
+hex = "0.4.3"
+subtle = "2.6.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+ctrlc = "=3.4.5"
+rusb = { version = "0.9.4", features = ["vendored"] }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

@@ -1,0 +1,198 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required SDK packages
+        run: |
+          sdkmanager --install \
+            "platforms;android-35" \
+            "build-tools;36.0.0" \
+            "platform-tools"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests and lint
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew testDebugUnitTest lintDebug --console=plain --stacktrace
+
+      - name: Build signed release or debug fallback
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -n "${ANDROID_KEYSTORE_BASE64:-}" ]; then
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > release.keystore
+            {
+              printf 'storeFile=release.keystore\n'
+              printf 'storePassword=%s\n' "$ANDROID_KEYSTORE_PASSWORD"
+              printf 'keyAlias=%s\n' "$ANDROID_KEY_ALIAS"
+              printf 'keyPassword=%s\n' "$ANDROID_KEY_PASSWORD"
+            } > keystore.properties
+            ./gradlew :app:assembleRelease --console=plain --stacktrace
+            echo "SIGNED=true" >> "$GITHUB_ENV"
+          else
+            echo "::warning::Android signing secrets are not configured; publishing a debug APK."
+            ./gradlew :app:assembleDebug --console=plain --stacktrace
+            echo "SIGNED=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Stage APK
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          version="${GITHUB_REF_NAME#v}"
+          if [ "$SIGNED" = "true" ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "dist/fluxpad-${version}.apk"
+          else
+            cp android/app/build/outputs/apk/debug/app-debug.apk "dist/fluxpad-${version}-debug.apk"
+          fi
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fluxpad-android-release
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  desktop:
+    name: ${{ matrix.name }} receiver
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: linux-x86_64
+            os: ubuntu-latest
+            asset: fluxpad-receiver-linux-x86_64
+            binary: desktop/target/release/fluxpad-receiver
+          - name: windows-x86_64
+            os: windows-latest
+            asset: fluxpad-receiver-windows-x86_64.exe
+            binary: desktop/target/release/fluxpad-receiver.exe
+          - name: macos
+            os: macos-latest
+            asset: fluxpad-receiver-macos
+            binary: desktop/target/release/fluxpad-receiver
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            libudev-dev
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop
+
+      - name: Protocol and shared tests
+        working-directory: desktop
+        run: cargo test -p fluxpad-protocol -p fluxpad-shared -p fluxpad-tests --locked
+
+      - name: Native backend unit tests
+        working-directory: desktop
+        run: cargo test -p fluxpad-windows -p fluxpad-linux -p fluxpad-macos --locked
+
+      - name: Build receiver
+        working-directory: desktop
+        run: cargo build --release -p fluxpad-receiver --locked
+
+      - name: Stage receiver binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp "${{ matrix.binary }}" "dist/${{ matrix.asset }}"
+          chmod +x "dist/${{ matrix.asset }}"
+
+      - name: Upload receiver artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/${{ matrix.asset }}
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish GitHub release
+    needs: [android, desktop]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Download Android artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: fluxpad-android-release
+          path: dist
+
+      - name: Download receiver artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fluxpad-receiver-*
+          merge-multiple: true
+          path: dist
+
+      - name: Create checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: FLUXPAD ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*
