@@ -79,9 +79,9 @@ jobs:
         run: |
           set +e
           if [ -f build.log ]; then
-            message=$(grep -m 12 -E '^(error|  = note|  = help|Caused by|.*undefined reference|.*cannot find)' build.log || true)
+            message=$(grep -a -E 'error(\[|:)|--> .*\.rs' build.log | head -30 || true)
             if [ -z "$message" ]; then
-              message=$(tail -n 20 build.log)
+              message=$(tail -n 200 build.log)
             fi
             message=$(printf '%s' "$message" | tr '\n' ' ' | cut -c1-3000 | sed 's/%/%25/g')
             echo "::error title=Rust build failed::${message:-build failed with no output}"

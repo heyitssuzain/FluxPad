@@ -10,7 +10,9 @@ use std::time::{Duration, Instant};
 
 use fluxpad_protocol::{Frame, HEADER_SIZE, MAX_PAYLOAD};
 use fluxpad_shared::{Link, LinkError};
-use rusb::{ConfigDescriptor, Context, Device, DeviceHandle, Direction, TransferType};
+use rusb::{
+    ConfigDescriptor, Context, Device, DeviceHandle, Direction, TransferType, UsbContext,
+};
 
 const GOOGLE_VID: u16 = 0x18D1;
 const ACCESSORY_PIDS: [u16; 2] = [0x2D00, 0x2D01];
