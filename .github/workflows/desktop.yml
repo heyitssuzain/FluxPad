@@ -79,8 +79,13 @@ jobs:
         run: |
           set +e
           if [ -f build.log ]; then
-            message=$(grep -m 12 -E '^(error|  = note|  = help|Caused by|.*undefined reference|.*cannot find)' build.log | tr '\n' ' ' | cut -c1-1200 | sed 's/%/%25/g')
-            echo "::error title=Rust build failed::$message"
+            message=$(grep -m 12 -E '^(error|  = note|  = help|Caused by|.*undefined reference|.*cannot find)' build.log || true)
+            if [ -z "$message" ]; then
+              message=$(tail -n 20 build.log)
+            fi
+            message=$(printf '%s' "$message" | tr '\n' ' ' | cut -c1-3000 | sed 's/%/%25/g')
+            echo "::error title=Rust build failed::${message:-build failed with no output}"
+            echo "::notice title=Build log bytes::$(wc -c < build.log)"
             echo '----- last 80 lines -----'
             tail -n 80 build.log
           else
