@@ -39,7 +39,7 @@ No path uses Android Accessibility services to move the mouse or type on the hos
 
 ### From GitHub Releases
 
-Download the APK attached to a release of this repository.
+Download the APK attached to the [latest release](https://github.com/heyitssuzain/FluxPad/releases/latest). The current `v1.0.0` release contains a debug-signed APK; configure signing secrets and tag another release for a production signature.
 
 - A **signed release APK** is published when the repository’s signing secrets are configured.
 - Otherwise the release contains a **debug APK**. It is installable and useful for testing, but it is not a Play Store-style signed production artifact.

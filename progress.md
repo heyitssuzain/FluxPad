@@ -34,7 +34,7 @@ Legend: ✅ done and verified in this environment · 🟡 implemented, not hardw
 | 6 | USB Companion (Android side) | 🟡 | AOA accessory open/permission/read/write, PBKDF2/HMAC pairing, Keystore storage, heartbeat. No hardware test. |
 | 7 | Rust receiver | 🟡 | CLI, authenticated session, native Windows/Linux/macOS backends, pairing store. CI builds and unit-tests all three native targets. Hardware input injection is still unverified. |
 | 8 | Premium UI / accessibility | ✅ | Dark premium UI, custom Canvas animation, reduced-motion setting, no fake state. |
-| 9 | Build + release workflow | 🟡 | Android and desktop CI are green. Release signing and tagged publishing still need secrets and a tag run. |
+| 9 | Build + release workflow | 🟡 | Android and desktop CI are green. `v1.0.0` is published with a debug APK fallback; production signing still needs secrets. |
 | 10 | Documentation | ✅ | README, architecture, protocol, USB compatibility, testing, privacy, signing, release, compatibility. |
 | 11 | Hardware verification | ⛔ | `AWAITING DEVICE` for every physical path. |
 
@@ -55,7 +55,7 @@ Legend: ✅ done and verified in this environment · 🟡 implemented, not hardw
 | GitHub Actions Android | **Passed** in run [44250241158](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241158): tests, lint, debug APK, artifact upload. |
 | GitHub Actions desktop matrix | **Passed** in run [44250241171](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241171): Linux, Windows, and macOS receiver builds plus native backend unit tests. |
 | Debug APK signature | `apksigner verify --print-certs` passed; debug certificate only, not a release identity. |
-| Release workflow | Written but not yet triggered by a version tag. |
+| Release workflow | **Passed** for tag `v1.0.0`: published [FLUXPAD v1.0.0](https://github.com/heyitssuzain/FluxPad/releases/tag/v1.0.0) with a debug APK, three receiver binaries, and `SHA256SUMS.txt`. Signing secrets were not configured, so the APK is the debug fallback. |
 
 ## What is implemented
 

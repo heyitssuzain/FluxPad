@@ -19,7 +19,7 @@
 | Real libusb link/build | `cargo build -p fluxpad-receiver` on a host with a C toolchain | **Passed in CI** on Linux, Windows, and macOS; not run locally because the Windows GNU toolchain has no `gcc`/`as`/`cc1` | CI is authoritative |
 | GitHub Actions Android | `.github/workflows/android.yml` | Passed: tests, lint, debug APK, artifact upload ([run](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241158)) | Install not run |
 | GitHub Actions desktop | `.github/workflows/desktop.yml` | Passed: Linux/Windows/macOS receiver builds and native backend tests ([run](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241171)) | Injection not run |
-| Release workflow | `.github/workflows/release.yml` | Written; not triggered until a `v*` tag is pushed | Pending |
+| Release workflow | `.github/workflows/release.yml` | Passed for `v1.0.0`: published debug APK, Linux/Windows/macOS receivers, and `SHA256SUMS.txt` ([release](https://github.com/heyitssuzain/FluxPad/releases/tag/v1.0.0)) | Signed release not run |
 
 The temporary type-check stub is not part of the repository and is not a runtime shim. The final workspace uses the real crates.io `rusb` dependency and a real `Cargo.lock`.
 
