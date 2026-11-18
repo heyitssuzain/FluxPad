@@ -77,12 +77,16 @@ jobs:
         working-directory: desktop
         shell: bash
         run: |
+          set +e
           if [ -f build.log ]; then
             message=$(grep -m 12 -E '^(error|  = note|  = help|Caused by|.*undefined reference|.*cannot find)' build.log | tr '\n' ' ' | cut -c1-1200 | sed 's/%/%25/g')
             echo "::error title=Rust build failed::$message"
             echo '----- last 80 lines -----'
             tail -n 80 build.log
+          else
+            echo '::warning title=Rust build failed::build.log was not created'
           fi
+          exit 0
 
       - name: Upload receiver binary
         uses: actions/upload-artifact@v4
