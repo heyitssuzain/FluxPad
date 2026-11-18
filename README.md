@@ -4,7 +4,7 @@
 
 FLUXPAD turns an Android phone into a real input device for Windows, Linux, and macOS. The primary path is a genuine Bluetooth HID composite device built on `BluetoothHidDevice` — the computer needs no FLUXPAD desktop app, driver, or Accessibility service. A second, honest wired path uses Android Open Accessory (AOA) plus a small native Rust receiver when Bluetooth is not suitable.
 
-> **Verification status:** the Android app builds, the unit tests and lint pass locally, and the Rust protocol/shared crates pass tests. Bluetooth HID, USB AOA, and every OS input backend still require real hardware. They are marked **AWAITING DEVICE**, not “confirmed working.” See [progress.md](progress.md) and [docs/TESTING.md](docs/TESTING.md).
+> **Verification status:** Android tests/lint and APK assembly pass locally; GitHub Actions builds the APK and the Linux, Windows, and macOS receivers. Bluetooth HID, USB AOA, and every OS input backend still require real hardware. They are marked **AWAITING DEVICE**, not “confirmed working.” See [progress.md](progress.md) and [docs/TESTING.md](docs/TESTING.md).
 
 ---
 

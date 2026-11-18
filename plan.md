@@ -2,7 +2,7 @@
 
 > **YOUR PHONE. YOUR COMPUTER. ONE CONTROL SYSTEM.**
 
-Status: **source/build implementation complete; hardware verification pending**
+Status: **source/build implementation complete; Android and desktop CI green; hardware verification and release signing pending**
 Owner: FLUXPAD engineering
 Primary device: Realme Narzo 50A (Android 11 / Realme UI 2.0 expected)
 Minimum Android: 9 (API 28) — Bluetooth HID device profile itself requires API 28.

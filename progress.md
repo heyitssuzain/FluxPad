@@ -32,9 +32,9 @@ Legend: ✅ done and verified in this environment · 🟡 implemented, not hardw
 | 4 | Touchpad + keyboard | ✅ | Gesture handling, coalescing, sensitivity/acceleration, 6KRO keyboard, chords, text typing. Unit-tested report/mapping code. |
 | 5 | Media + presentation + decks + shortcuts | ✅ | Screens and input mappings implemented; deck persistence and shortcut parsing tested. |
 | 6 | USB Companion (Android side) | 🟡 | AOA accessory open/permission/read/write, PBKDF2/HMAC pairing, Keystore storage, heartbeat. No hardware test. |
-| 7 | Rust receiver | 🟡 | CLI, authenticated session, native Windows/Linux/macOS backends, pairing store. Windows type-checks; Linux/macOS cross-target type-check. Real libusb link not built locally. |
+| 7 | Rust receiver | 🟡 | CLI, authenticated session, native Windows/Linux/macOS backends, pairing store. CI builds and unit-tests all three native targets. Hardware input injection is still unverified. |
 | 8 | Premium UI / accessibility | ✅ | Dark premium UI, custom Canvas animation, reduced-motion setting, no fake state. |
-| 9 | Build + release workflow | 🟡 | Workflows written for Android/Rust/release; not executed in this environment. Local release APK is unsigned. |
+| 9 | Build + release workflow | 🟡 | Android and desktop CI are green. Release signing and tagged publishing still need secrets and a tag run. |
 | 10 | Documentation | ✅ | README, architecture, protocol, USB compatibility, testing, privacy, signing, release, compatibility. |
 | 11 | Hardware verification | ⛔ | `AWAITING DEVICE` for every physical path. |
 
@@ -52,7 +52,10 @@ Legend: ✅ done and verified in this environment · 🟡 implemented, not hardw
 | `cargo check --target x86_64-apple-darwin -p fluxpad-macos --all-targets` | Passed (type-check only) |
 | `cargo check -p fluxpad-usb -p fluxpad-receiver` | Passed against the published `rusb` API; a temporary local type-check stub was required, then removed. |
 | Real libusb/receiver link | **Not run locally.** Local Windows GNU toolchain lacks `gcc`/`as`/`cc1`; CI is the authoritative build. |
-| GitHub Actions | **Not run.** Workflows are committed but not exercised here. |
+| GitHub Actions Android | **Passed** in run [44250241158](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241158): tests, lint, debug APK, artifact upload. |
+| GitHub Actions desktop matrix | **Passed** in run [44250241171](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241171): Linux, Windows, and macOS receiver builds plus native backend unit tests. |
+| Debug APK signature | `apksigner verify --print-certs` passed; debug certificate only, not a release identity. |
+| Release workflow | Written but not yet triggered by a version tag. |
 
 ## What is implemented
 
@@ -110,10 +113,10 @@ These are **not** passed. They are the next milestone.
 
 ### Release
 
-- [ ] First GitHub Actions run succeeds (Android + Rust matrix).
+- [x] First GitHub Actions run succeeds (Android + Rust matrix).
 - [ ] Signed APK built from repository secrets.
 - [ ] `apksigner verify` and checksum verification on release assets.
-- [ ] Receiver binaries run `--help`/`--version` on their target OSes.
+- [ ] Receiver binaries run `--help`/`--version` on their target OSes (CI builds them, but does not execute them).
 
 ## Known blockers and risks
 
@@ -123,13 +126,12 @@ These are **not** passed. They are the next milestone.
 - Windows WinUSB binding is the least plug-and-play part of USB Companion and may disrupt MTP/ADB.
 - macOS requires Accessibility permission and can ignore synthetic input in secure fields.
 - Hosts cache Bluetooth SDP records; descriptor changes require re-pairing.
-- GitHub Actions workflows have not been executed yet.
 - The local release APK is unsigned; signing secrets are not present in this workspace.
+- Without signing secrets, the release workflow publishes a debug APK fallback; that is not a production signing identity.
 
 ## Next actions
 
-1. Push the repository to `https://github.com/heyitssuzain/FluxPad` and run the Android/Desktop workflows.
-2. Fix any CI-only build issues (especially vendored libusb on MSVC/macOS).
-3. Install the debug APK on the Realme and record the hardware checklist results.
-4. Configure signing secrets and produce a signed APK.
-5. Only then change `AWAITING DEVICE` rows to verified in this file and the compatibility docs.
+1. Install the CI-built debug APK on the Realme and record the hardware checklist results.
+2. Configure `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and `ANDROID_KEY_PASSWORD`, then run the release workflow for a signed APK.
+3. Run the receiver binaries on real Windows/Linux/macOS hosts and verify input injection, permissions, pairing, reconnect, and cable-pull behavior.
+4. Only then change `AWAITING DEVICE` rows to verified in this file and the compatibility docs.

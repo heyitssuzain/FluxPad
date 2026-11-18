@@ -8,15 +8,18 @@
 |---|---|---|---|
 | Android debug build | `./gradlew :app:assembleDebug` | Passed | Install not run |
 | Android release build | `./gradlew :app:assembleRelease` | Passed; unsigned local APK | Signed CI build not run |
+| Android debug APK signature | `apksigner verify --print-certs` | Passed; Android debug certificate, not a release identity | N/A |
 | Android unit tests | `./gradlew testDebugUnitTest` | Passed (`core:input`, `core:model`; `:app` has no test sources) | N/A |
 | Android lint | `./gradlew lintDebug` | Passed; warnings only (SDK/version/deprecation) | N/A |
 | Rust protocol/shared/tests | `cargo test -p fluxpad-protocol -p fluxpad-shared -p fluxpad-tests` | Passed | N/A |
 | Rust Windows backend | `cargo check -p fluxpad-windows --all-targets` | Passed | Injection not run |
-| Rust USB/receiver | `cargo check -p fluxpad-usb -p fluxpad-receiver` | Passed against the published `rusb` API using a temporary local type-check stub; full real-`rusb` build was **not** possible locally | USB not run |
+| Rust USB/receiver | `cargo check -p fluxpad-usb -p fluxpad-receiver` | Passed against the published `rusb` API using a temporary local type-check stub; real `rusb`/libusb receiver builds passed in CI on all three hosts | USB not run |
 | Rust Linux backend | `cargo check --target x86_64-unknown-linux-gnu -p fluxpad-linux --all-targets` | Passed (cross-target type-check) | uinput not run |
 | Rust macOS backend | `cargo check --target x86_64-apple-darwin -p fluxpad-macos --all-targets` | Passed (cross-target type-check) | CoreGraphics not run |
-| Real libusb link/build | `cargo build -p fluxpad-receiver` on a host with a C toolchain | **Not run locally**: the local Windows GNU toolchain has no `gcc`/`as`/`cc1` | CI is authoritative |
-| GitHub Actions | Workflow files | Written; not executed in this environment | Pending push |
+| Real libusb link/build | `cargo build -p fluxpad-receiver` on a host with a C toolchain | **Passed in CI** on Linux, Windows, and macOS; not run locally because the Windows GNU toolchain has no `gcc`/`as`/`cc1` | CI is authoritative |
+| GitHub Actions Android | `.github/workflows/android.yml` | Passed: tests, lint, debug APK, artifact upload ([run](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241158)) | Install not run |
+| GitHub Actions desktop | `.github/workflows/desktop.yml` | Passed: Linux/Windows/macOS receiver builds and native backend tests ([run](https://github.com/heyitssuzain/FluxPad/actions/runs/44250241171)) | Injection not run |
+| Release workflow | `.github/workflows/release.yml` | Written; not triggered until a `v*` tag is pushed | Pending |
 
 The temporary type-check stub is not part of the repository and is not a runtime shim. The final workspace uses the real crates.io `rusb` dependency and a real `Cargo.lock`.
 
