@@ -4,7 +4,7 @@
 
 FLUXPAD turns an Android phone into a real input device for Windows, Linux, and macOS. The primary path is a genuine Bluetooth HID composite device built on `BluetoothHidDevice` — the computer needs no FLUXPAD desktop app, driver, or Accessibility service. A second, honest wired path uses Android Open Accessory (AOA) plus a small native Rust receiver when Bluetooth is not suitable.
 
-> **Verification status:** Android tests/lint and APK assembly pass locally; GitHub Actions builds the APK and the Linux, Windows, and macOS receivers. Bluetooth HID, USB AOA, and every OS input backend still require real hardware. They are marked **AWAITING DEVICE**, not “confirmed working.” See [progress.md](progress.md) and [docs/TESTING.md](docs/TESTING.md).
+> **Verification status:** Bluetooth HID is verified end to end on a Realme RMX3430 (Android 13) against Windows 11: cursor movement, clicks, two-finger scroll, keyboard input and the paired HID node. Android tests/lint and APK assembly pass locally; GitHub Actions builds the APK and the Linux, Windows, and macOS receivers. USB AOA, Linux/macOS injection and the desktop receiver still require their own hardware passes. See [progress.md](progress.md), [docs/TESTING.md](docs/TESTING.md) and [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md).
 
 ---
 
@@ -39,12 +39,19 @@ No path uses Android Accessibility services to move the mouse or type on the hos
 
 ### From GitHub Releases
 
-Download the APK attached to the [latest release](https://github.com/heyitssuzain/FluxPad/releases/latest). The current `v1.0.0` release contains a debug-signed APK; configure signing secrets and tag another release for a production signature.
+Download the APK attached to the [latest release](https://github.com/heyitssuzain/FluxPad/releases/latest). `v1.1.0` adds two-finger navigation swipes, configurable four-finger shortcuts and a rebuilt touchpad; like `v1.0.0` it is debug-signed until signing secrets are configured.
 
 - A **signed release APK** is published when the repository’s signing secrets are configured.
 - Otherwise the release contains a **debug APK**. It is installable and useful for testing, but it is not a Play Store-style signed production artifact.
 
 Always verify the source before installing an APK. Android will warn about installing apps from a browser or file manager; that warning is expected for sideloaded builds.
+
+> **Install only one FLUXPAD build** (debug or release, not both) and grant
+> **Nearby devices**. If the pad says CONNECTED but the computer ignores it, the
+> pairing key is stale — follow
+> [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md#1-it-says-connected-but-the-laptop-does-nothing).
+> If the app says it could not register the HID role, toggle Bluetooth off/on
+> once and reopen it.
 
 ### Build locally
 
@@ -195,6 +202,7 @@ docs/                  Architecture, compatibility, testing, privacy, signing, r
 - [Architecture](docs/ARCHITECTURE.md)
 - [Wire protocol](docs/PROTOCOL.md)
 - [USB compatibility and host setup](docs/USB_COMPATIBILITY.md)
+- [Troubleshooting and pairing recovery](docs/TROUBLESHOOTING.md)
 - [Testing and the hardware verification checklist](docs/TESTING.md)
 - [Privacy](docs/PRIVACY.md)
 - [Signing the Android APK](docs/SIGNING.md)

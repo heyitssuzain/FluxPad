@@ -27,6 +27,12 @@ class BluetoothDeviceLister(private val context: Context) {
         if (!hasPermission()) return emptyList()
         return try {
             adapter.bondedDevices.orEmpty()
+                // HID device role is a BR/EDR profile: an LE-only bond can never
+                // host a HID channel, so do not offer it as a computer.
+                .filter { device ->
+                    device.bondState == android.bluetooth.BluetoothDevice.BOND_BONDED &&
+                        device.type != android.bluetooth.BluetoothDevice.DEVICE_TYPE_LE
+                }
                 .map { device ->
                     ComputerDevice(
                         name = device.name?.takeIf { it.isNotBlank() } ?: device.address,
@@ -35,6 +41,7 @@ class BluetoothDeviceLister(private val context: Context) {
                         bonded = device.bondState == android.bluetooth.BluetoothDevice.BOND_BONDED,
                     )
                 }
+                .distinctBy { it.address }
                 .sortedBy { it.name.lowercase() }
         } catch (_: SecurityException) {
             emptyList()

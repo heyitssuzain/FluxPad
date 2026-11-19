@@ -134,11 +134,11 @@ private fun RootNavigation(
     val backStack by navController.currentBackStackEntryAsState()
     val route = backStack?.destination?.route ?: Routes.HOME
     val topLevel = setOf(
-        Routes.HOME, Routes.TOUCHPAD, Routes.KEYBOARD, Routes.DECK, Routes.SETTINGS,
+        Routes.HOME, Routes.TOUCHPAD, Routes.KEYBOARD, Routes.MEDIA, Routes.DECK,
     )
     val showDock = route in topLevel
     val reduced = dev.fluxpad.core.design.LocalReducedMotion.current
-    val duration = if (reduced) 0 else 240
+    val duration = if (reduced) 0 else 170
 
     Box(Modifier.fillMaxSize()) {
         NavHost(
@@ -148,13 +148,13 @@ private fun RootNavigation(
                 .fillMaxSize()
                 .padding(bottom = if (showDock) 94.dp else 0.dp),
             enterTransition = {
-                fadeIn(tween(duration)) + slideInHorizontally(tween(duration)) { it / 14 }
+                fadeIn(tween(duration)) + slideInHorizontally(tween(duration)) { it / 20 }
             },
-            exitTransition = { fadeOut(tween(if (reduced) 0 else 120)) },
+            exitTransition = { fadeOut(tween(if (reduced) 0 else 90)) },
             popEnterTransition = {
-                fadeIn(tween(duration)) + slideInHorizontally(tween(duration)) { -it / 14 }
+                fadeIn(tween(duration)) + slideInHorizontally(tween(duration)) { -it / 20 }
             },
-            popExitTransition = { fadeOut(tween(if (reduced) 0 else 120)) },
+            popExitTransition = { fadeOut(tween(if (reduced) 0 else 90)) },
         ) {
             composable(Routes.ONBOARDING) {
                 OnboardingScreen(appVm, feedback) {
@@ -208,8 +208,8 @@ private fun RootNavigation(
                     DockItem(Routes.HOME, "Home", FluxGlyph.HOME),
                     DockItem(Routes.TOUCHPAD, "Pad", FluxGlyph.TOUCHPAD),
                     DockItem(Routes.KEYBOARD, "Keys", FluxGlyph.KEYBOARD),
+                    DockItem(Routes.MEDIA, "Media", FluxGlyph.PLAY),
                     DockItem(Routes.DECK, "Deck", FluxGlyph.DECK),
-                    DockItem(Routes.SETTINGS, "Settings", FluxGlyph.SETTINGS),
                 ),
                 selectedRoute = route,
                 onSelect = { destination ->

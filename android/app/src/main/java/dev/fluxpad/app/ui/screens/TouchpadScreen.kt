@@ -1,29 +1,38 @@
 package dev.fluxpad.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,20 +53,28 @@ import dev.fluxpad.app.ui.FluxFeedback
 import dev.fluxpad.app.ui.Routes
 import dev.fluxpad.core.design.Flux
 import dev.fluxpad.core.design.FluxButton
-import dev.fluxpad.core.design.FluxButtonVariant
 import dev.fluxpad.core.design.FluxCard
 import dev.fluxpad.core.design.FluxGlyph
 import dev.fluxpad.core.design.FluxIcon
+import dev.fluxpad.core.design.FluxIconButton
 import dev.fluxpad.core.design.FluxPill
 import dev.fluxpad.core.design.FluxSlider
 import dev.fluxpad.core.design.FluxType
-import dev.fluxpad.core.design.SectionLabel
-import dev.fluxpad.core.design.ScreenHeader
+import dev.fluxpad.core.design.LocalReducedMotion
+import dev.fluxpad.core.data.gestureBindings
 import dev.fluxpad.core.model.ConnectionState
+import dev.fluxpad.core.model.GestureAction
+import dev.fluxpad.core.model.GestureSwipe
+import dev.fluxpad.core.model.SwipeRecognizer
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.max
 
+/**
+ * A full-bleed track surface. The whole screen is the mouse: overlays float on
+ * top and consume only their own touches, so a drag anywhere moves the host
+ * pointer one screen pixel per finger pixel, with no card frame or dead bands.
+ */
 @Composable
 fun TouchpadScreen(
     appVm: AppViewModel,
@@ -65,6 +82,7 @@ fun TouchpadScreen(
     nav: NavHostController,
 ) {
     val p = Flux.current
+    val reduced = LocalReducedMotion.current
     val settings by appVm.settings.collectAsStateWithLifecycle()
     val state by appVm.connectionState.collectAsStateWithLifecycle()
     val metrics by appVm.metrics.collectAsStateWithLifecycle()
@@ -74,327 +92,492 @@ fun TouchpadScreen(
 
     var lastPoint by remember { mutableStateOf<Offset?>(null) }
     var touching by remember { mutableStateOf(false) }
-
+    var showSpeed by remember { mutableStateOf(false) }
     var sensitivity by remember { mutableFloatStateOf(current.pointerSensitivity) }
-    val effectiveSensitivity = sensitivity
-    androidx.compose.runtime.LaunchedEffect(sensitivity) {
-        delay(280)
+    var gestureHud by remember { mutableStateOf<String?>(null) }
+    var cooldownUntil by remember { mutableLongStateOf(0L) }
+    val gestures = current.gestureBindings
+
+    LaunchedEffect(sensitivity) {
+        delay(220)
         appVm.updateSettings { it.copy(pointerSensitivity = sensitivity) }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .padding(horizontal = 18.dp),
-    ) {
-        Spacer(Modifier.height(6.dp))
-        ScreenHeader(
-            title = "Touchpad",
-            subtitle = if (connected) {
-                "Linked to " + ((state as? ConnectionState.Connected)?.deviceName ?: "computer")
-            } else {
-                "Connect a computer to send pointer input"
-            },
-            onBack = { nav.popBackStack() },
-            actions = {
+    LaunchedEffect(gestureHud) {
+        val shown = gestureHud ?: return@LaunchedEffect
+        delay(1100)
+        if (gestureHud == shown) gestureHud = null
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        // ---- The surface ----
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(
+                    connected,
+                    sensitivity,
+                    gestures.enabled,
+                    gestures.twoFingerNavigation,
+                    gestures.fourFingerShortcuts,
+                    gestures.twoDown,
+                    gestures.twoUp,
+                    gestures.fourUp,
+                    gestures.fourDown,
+                    gestures.fourLeft,
+                    gestures.fourRight,
+                    gestures.sensitivity,
+                ) {
+                    val twoProfile = SwipeRecognizer.twoFingerProfile(
+                        widthPx = size.width.toFloat(),
+                        heightPx = size.height.toFloat(),
+                        density = density,
+                    )
+                    val fourProfile = SwipeRecognizer.fourFingerProfile(
+                        widthPx = size.width.toFloat(),
+                        heightPx = size.height.toFloat(),
+                        density = density,
+                    )
+
+                    fun runSwipe(fingers: Int, swipe: GestureSwipe, now: Long): Boolean {
+                        val action = gestures.actionFor(fingers, swipe)
+                        if (action == GestureAction.NONE || !connected || now < cooldownUntil) return false
+                        cooldownUntil = now + 620L
+                        appVm.runGesture(action)
+                        gestureHud = action.label
+                        feedback.click(accent = true)
+                        return true
+                    }
+
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        touching = true
+                        lastPoint = down.position
+                        var ids = setOf(down.id)
+                        var lastCentroid = down.position
+                        var maxPointers = 1
+                        var pathLength = 0f
+                        var startedAt = down.uptimeMillis
+                        var now = startedAt
+                        var twoStartAt = 0L
+                        var pending = Offset.Zero
+                        var scrolling = false
+                        var swipeFired = false
+                        var fourStartAt = 0L
+                        var fourPending = Offset.Zero
+                        var fourFired = false
+                        var scrollTick = 0f
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val pressed = event.changes.filter { it.pressed }
+                            if (pressed.isEmpty()) break
+                            now = pressed.maxOf { it.uptimeMillis }
+                            maxPointers = max(maxPointers, pressed.size)
+                            val centroid = pressed.fold(Offset.Zero) { acc, change ->
+                                acc + change.position
+                            } / pressed.size.toFloat()
+                            val currentIds = pressed.map { it.id }.toSet()
+
+                            if (currentIds != ids) {
+                                // A finger joined or left: rebase on the new
+                                // centroid so the jump is never read as motion.
+                                ids = currentIds
+                                lastCentroid = centroid
+                                pending = Offset.Zero
+                                if (pressed.size == 2) {
+                                    twoStartAt = now
+                                    scrolling = false
+                                }
+                                if (pressed.size >= 4) {
+                                    fourStartAt = now
+                                    fourPending = Offset.Zero
+                                }
+                                pressed.forEach { it.consume() }
+                                continue
+                            }
+
+                            val delta = centroid - lastCentroid
+                            lastCentroid = centroid
+                            if (delta == Offset.Zero) {
+                                pressed.forEach { it.consume() }
+                                continue
+                            }
+                            pathLength += delta.getDistance()
+
+                            when {
+                                pressed.size == 1 -> {
+                                    if (maxPointers == 1 && connected) {
+                                        appVm.moveBy(delta.x, delta.y)
+                                        lastPoint = centroid
+                                    }
+                                }
+
+                                pressed.size == 2 -> {
+                                    pending += delta
+                                    val elapsed = (now - twoStartAt).coerceAtLeast(1L)
+                                    if (swipeFired) {
+                                        // One gesture, one host action.
+                                    } else if (scrolling) {
+                                        if (connected) appVm.scrollBy(delta.x, delta.y)
+                                        scrollTick += delta.getDistance()
+                                        if (scrollTick > 26f * density) {
+                                            scrollTick = 0f
+                                            feedback.tick()
+                                        }
+                                    } else {
+                                        val swipe = if (twoStartAt > 0L) {
+                                            SwipeRecognizer.classify(
+                                                dx = pending.x,
+                                                dy = pending.y,
+                                                durationMs = elapsed,
+                                                profile = twoProfile,
+                                                sensitivity = gestures.sensitivity,
+                                                verticalOnly = true,
+                                            )
+                                        } else {
+                                            null
+                                        }
+                                        if (swipe != null && runSwipe(2, swipe, now)) {
+                                            swipeFired = true
+                                            pending = Offset.Zero
+                                        } else {
+                                            // Hold a fast, straight vertical move
+                                            // briefly: it may be a swipe, and a
+                                            // scroll must not leak into it.
+                                            val hold = SwipeRecognizer.holdForSwipe(
+                                                enabled = gestures.enabled,
+                                                twoFingerNavigation = gestures.twoFingerNavigation,
+                                                dx = pending.x,
+                                                dy = pending.y,
+                                                elapsedMs = elapsed,
+                                                profile = twoProfile,
+                                                sensitivity = gestures.sensitivity,
+                                            )
+                                            if (!hold) {
+                                                if (connected) appVm.scrollBy(pending.x, pending.y)
+                                                pending = Offset.Zero
+                                                scrolling = true
+                                            }
+                                        }
+                                    }
+                                }
+
+                                pressed.size >= 4 -> {
+                                    fourPending += delta
+                                    if (!fourFired) {
+                                        val elapsed = (now - fourStartAt).coerceAtLeast(1L)
+                                        val swipe = if (fourStartAt > 0L) {
+                                            SwipeRecognizer.classify(
+                                                dx = fourPending.x,
+                                                dy = fourPending.y,
+                                                durationMs = elapsed,
+                                                profile = fourProfile,
+                                                sensitivity = gestures.sensitivity,
+                                            )
+                                        } else {
+                                            null
+                                        }
+                                        if (swipe != null && runSwipe(4, swipe, now)) {
+                                            fourFired = true
+                                            fourPending = Offset.Zero
+                                        }
+                                    }
+                                }
+                            }
+                            pressed.forEach { it.consume() }
+                        }
+
+                        touching = false
+                        lastPoint = null
+                        // A short vertical move below the swipe threshold is a
+                        // scroll the user expected; flush it on lift.
+                        if (!swipeFired && !scrolling && pending != Offset.Zero && connected) {
+                            appVm.scrollBy(pending.x, pending.y)
+                        }
+
+                        val duration = now - startedAt
+                        if (pathLength < 14f * density && duration < 320L) {
+                            when (maxPointers) {
+                                1 -> {
+                                    appVm.click(0x01)
+                                    feedback.click()
+                                }
+                                2 -> {
+                                    appVm.click(0x02)
+                                    feedback.click(accent = true)
+                                }
+                                3 -> {
+                                    appVm.click(0x04)
+                                    feedback.click(accent = true)
+                                }
+                            }
+                        }
+                    }
+                },
+        ) {
+            Canvas(Modifier.fillMaxSize()) {
+                drawRect(
+                    Brush.radialGradient(
+                        colors = listOf(p.elevated.copy(alpha = 0.9f), Color.Transparent),
+                        center = Offset(size.width * 0.5f, size.height * 0.45f),
+                        radius = size.maxDimension * 0.75f,
+                    ),
+                )
+                drawCircle(
+                    color = p.accent.copy(alpha = 0.045f),
+                    radius = size.minDimension * 0.46f,
+                    center = Offset(size.width / 2, size.height * 0.46f),
+                )
+                drawCircle(
+                    color = p.accent.copy(alpha = 0.10f),
+                    radius = size.minDimension * 0.46f,
+                    center = Offset(size.width / 2, size.height * 0.46f),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+                )
+                lastPoint?.let { point ->
+                    if (current.cursorFeedback) {
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                listOf(p.accent.copy(alpha = 0.22f), Color.Transparent),
+                                center = point,
+                                radius = 52.dp.toPx(),
+                            ),
+                            radius = 52.dp.toPx(),
+                            center = point,
+                        )
+                        drawCircle(p.accent.copy(alpha = 0.9f), 4.dp.toPx(), point)
+                        drawCircle(
+                            p.accent.copy(alpha = 0.4f),
+                            14.dp.toPx(),
+                            point,
+                            style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
+                        )
+                    }
+                }
+            }
+
+            Text(
+                text = if (touching) "SENDING" else "TRACK",
+                style = FluxType.label.copy(fontSize = 9.sp),
+                color = p.faint.copy(alpha = if (touching) 0.85f else 0.35f),
+                modifier = Modifier.align(Alignment.Center),
+            )
+        }
+
+        // ---- Top overlay ----
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                FluxIconButton(
+                    glyph = FluxGlyph.BACK,
+                    contentDescription = "Back",
+                    onClick = { nav.popBackStack() },
+                    size = 38.dp,
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Touchpad", style = FluxType.title, color = p.text)
+                    Text(
+                        if (connected) {
+                            "Linked to " +
+                                ((state as? ConnectionState.Connected)?.deviceName ?: "computer")
+                        } else {
+                            "Not connected"
+                        },
+                        style = FluxType.bodySmall,
+                        color = if (connected) p.muted else p.warning,
+                        maxLines = 1,
+                    )
+                }
                 FluxPill(
                     text = if (connected) "LIVE" else "OFFLINE",
                     tone = if (connected) p.success else p.faint,
                 )
-            },
-        )
-        Spacer(Modifier.height(12.dp))
-
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            FluxPill(
-                text = "%.1fx".format(sensitivity),
-                tone = p.accent,
-                glyph = FluxGlyph.POINTER,
-            )
-            Spacer(Modifier.width(8.dp))
-            FluxPill(text = "%.1f ms".format(metrics.averageDispatchMs), tone = p.faint)
-            Spacer(Modifier.weight(1f))
-            Text(
-                "1 finger move · 2 scroll · 3 middle",
-                style = FluxType.mono.copy(fontSize = 8.5.sp, letterSpacing = 0.3.sp),
-                color = p.faint,
-                maxLines = 1,
-            )
-        }
-
-        Spacer(Modifier.height(10.dp))
-        FluxCard(padding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(232.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(p.accent.copy(alpha = 0.055f), Color.Transparent),
-                        ),
-                    )
-                    .pointerInput(connected, effectiveSensitivity) {
-                        awaitEachGesture {
-                            val down = awaitFirstDown(requireUnconsumed = false)
-                            touching = true
-                            lastPoint = down.position
-                            var maxPointers = 1
-                            var totalMove = 0f
-                            var lastCentroid: Offset? = null
-                            var startedAt = down.uptimeMillis
-                            var lastAt = startedAt
-                            var scrollTicks = 0f
-
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                val pressed = event.changes.filter { it.pressed }
-                                if (pressed.isEmpty()) break
-                                lastAt = event.changes.firstOrNull()?.uptimeMillis ?: lastAt
-                                maxPointers = max(maxPointers, pressed.size)
-
-                                if (pressed.size == 1) {
-                                    val change = pressed.first()
-                                    lastCentroid = null
-                                    val delta = change.position - change.previousPosition
-                                    if (delta != Offset.Zero) {
-                                        totalMove += delta.getDistance()
-                                        if (connected) {
-                                            appVm.moveBy(
-                                                delta.x / density,
-                                                delta.y / density,
-                                            )
-                                        }
-                                        lastPoint = change.position
-                                        change.consume()
-                                    }
-                                } else {
-                                    val centroid = pressed.fold(Offset.Zero) { acc, change ->
-                                        acc + change.position
-                                    } / pressed.size.toFloat()
-                                    val previous = lastCentroid
-                                    if (previous != null) {
-                                        val delta = centroid - previous
-                                        if (abs(delta.x) > 0.4f || abs(delta.y) > 0.4f) {
-                                            totalMove += delta.getDistance()
-                                            if (connected) {
-                                                appVm.scrollBy(delta.x / density, delta.y / density)
-                                            }
-                                            scrollTicks += delta.getDistance()
-                                            if (scrollTicks > 28f * density) {
-                                                scrollTicks = 0f
-                                                feedback.tick()
-                                            }
-                                        }
-                                    }
-                                    lastCentroid = centroid
-                                    pressed.forEach { it.consume() }
-                                }
-                            }
-
-                            touching = false
-                            lastPoint = null
-                            val duration = lastAt - startedAt
-                            val tapSlop = 18f * density
-                            if (totalMove < tapSlop && duration < 420L) {
-                                when (maxPointers) {
-                                    1 -> {
-                                        appVm.click(0x01)
-                                        feedback.click()
-                                    }
-                                    2 -> {
-                                        appVm.click(0x02)
-                                        feedback.click(accent = true)
-                                    }
-                                    3 -> {
-                                        appVm.click(0x04)
-                                        feedback.click(accent = true)
-                                    }
-                                }
-                            }
-                        }
-                    },
-            ) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val step = 30.dp.toPx()
-                    var y = step
-                    while (y < size.height) {
-                        var x = step
-                        while (x < size.width) {
-                            drawCircle(
-                                Color.White.copy(alpha = 0.045f),
-                                0.8.dp.toPx(),
-                                Offset(x, y),
-                            )
-                            x += step
-                        }
-                        y += step
-                    }
-                    drawCircle(
-                        color = p.accent.copy(alpha = 0.035f),
-                        radius = size.minDimension * 0.42f,
-                        center = center,
-                    )
-                    drawCircle(
-                        color = p.accent.copy(alpha = 0.08f),
-                        radius = size.minDimension * 0.42f,
-                        center = center,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
-                    )
-                    lastPoint?.let { point ->
-                        if (current.cursorFeedback) {
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    listOf(p.accent.copy(alpha = 0.25f), Color.Transparent),
-                                    center = point,
-                                    radius = 46.dp.toPx(),
-                                ),
-                                radius = 46.dp.toPx(),
-                                center = point,
-                            )
-                            drawCircle(p.accent.copy(alpha = 0.9f), 4.dp.toPx(), point)
-                            drawCircle(
-                                p.accent.copy(alpha = 0.4f),
-                                13.dp.toPx(),
-                                point,
-                                style = androidx.compose.ui.graphics.drawscope.Stroke(1.dp.toPx()),
-                            )
-                        }
-                    }
-                }
-
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    FluxIcon(
-                        FluxGlyph.TOUCHPAD,
-                        tint = p.accent.copy(alpha = if (touching) 0.7f else 0.18f),
-                        size = 34.dp,
-                        strokeWidth = 1.4.dp,
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        if (touching) "SENDING" else "TRACK SURFACE",
-                        style = FluxType.label,
-                        color = p.faint.copy(alpha = if (touching) 0.9f else 0.45f),
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    listOf("TAP L", "2-FINGER R", "3-FINGER M").forEach { hint ->
-                        Text(
-                            hint,
-                            style = FluxType.mono.copy(fontSize = 7.5.sp, letterSpacing = 0.8.sp),
-                            color = p.faint.copy(alpha = 0.7f),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(5.dp))
-                                .background(p.surface.copy(alpha = 0.75f))
-                                .padding(horizontal = 6.dp, vertical = 3.dp),
-                        )
-                    }
-                }
             }
-        }
 
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-            MouseKey(
-                label = "LEFT",
-                glyph = FluxGlyph.MOUSE,
-                modifier = Modifier.weight(1.25f),
-                enabled = connected,
-                onPress = {
-                    appVm.mouseButton(0x01, true)
-                    feedback.click()
-                },
-                onRelease = { appVm.mouseButton(0x01, false) },
-            )
-            MouseKey(
-                label = "MIDDLE",
-                glyph = FluxGlyph.GRID,
-                modifier = Modifier.weight(0.85f),
-                enabled = connected,
-                onPress = {
-                    appVm.mouseButton(0x04, true)
-                    feedback.click()
-                },
-                onRelease = { appVm.mouseButton(0x04, false) },
-            )
-            MouseKey(
-                label = "RIGHT",
-                glyph = FluxGlyph.MOUSE,
-                modifier = Modifier.weight(1.25f),
-                enabled = connected,
-                onPress = {
-                    appVm.mouseButton(0x02, true)
-                    feedback.click()
-                },
-                onRelease = { appVm.mouseButton(0x02, false) },
-            )
-        }
-
-        Spacer(Modifier.height(12.dp))
-        FluxCard(padding = androidx.compose.foundation.layout.PaddingValues(14.dp)) {
+            Spacer(Modifier.height(8.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Pointer speed", style = FluxType.subtitle, color = p.text)
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        if (current.acceleration) "Acceleration on" else "Linear movement",
-                        style = FluxType.bodySmall,
-                        color = p.muted,
-                    )
-                }
+                Pill(
+                    text = "%.2fx".format(sensitivity),
+                    onClick = { showSpeed = !showSpeed },
+                )
+                Spacer(Modifier.width(6.dp))
+                Pill(text = "%.1f ms".format(metrics.averageDispatchMs))
+                Spacer(Modifier.weight(1f))
                 Text(
-                    "%.1fx".format(sensitivity),
-                    style = FluxType.monoLarge,
-                    color = p.accent,
+                    when {
+                        !gestures.enabled -> "2-finger scroll"
+                        gestures.twoFingerNavigation && gestures.fourFingerShortcuts ->
+                            "2-finger scroll · 4-finger shortcuts"
+                        gestures.twoFingerNavigation && gestures.twoDown != GestureAction.NONE ->
+                            "swipe ↓ ${gestures.twoDown.label.lowercase()}"
+                        else -> "2-finger scroll"
+                    },
+                    style = FluxType.mono.copy(fontSize = 8.sp, letterSpacing = 0.2.sp),
+                    color = p.faint.copy(alpha = 0.85f),
+                    maxLines = 1,
                 )
             }
-            FluxSlider(
-                value = sensitivity,
-                onValueChange = { sensitivity = it.roundToQuarter() },
-                valueRange = 0.2f..2.5f,
-                modifier = Modifier.padding(top = 4.dp),
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("PRECISE", style = FluxType.label, color = p.faint)
-                Spacer(Modifier.weight(1f))
-                Text("FAST", style = FluxType.label, color = p.faint)
-            }
-        }
 
-        if (!connected) {
-            Spacer(Modifier.height(10.dp))
-            FluxCard(
-                accent = p.accent,
-                onClick = { nav.navigate(Routes.CONNECT) },
+            AnimatedVisibility(
+                visible = showSpeed,
+                enter = fadeIn(androidx.compose.animation.core.tween(if (reduced) 0 else 140)) +
+                    expandVertically(androidx.compose.animation.core.tween(if (reduced) 0 else 160)),
+                exit = fadeOut(androidx.compose.animation.core.tween(if (reduced) 0 else 110)) +
+                    shrinkVertically(androidx.compose.animation.core.tween(if (reduced) 0 else 130)),
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    FluxIcon(FluxGlyph.BLUETOOTH, tint = p.accent, size = 18.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("No input link", style = FluxType.subtitle, color = p.text)
-                        Text(
-                            "Connect a computer to make this surface live.",
-                            style = FluxType.bodySmall,
-                            color = p.muted,
+                FluxCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    padding = PaddingValues(14.dp),
+                ) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Pointer speed", style = FluxType.subtitle, color = p.text)
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                "%.2fx".format(sensitivity),
+                                style = FluxType.monoLarge,
+                                color = p.accent,
+                            )
+                        }
+                        FluxSlider(
+                            value = sensitivity,
+                            onValueChange = { sensitivity = it.roundToQuarter() },
+                            valueRange = 0.2f..3f,
+                            modifier = Modifier.padding(top = 2.dp),
                         )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("PRECISE", style = FluxType.label, color = p.faint)
+                            Spacer(Modifier.weight(1f))
+                            Text("FAST", style = FluxType.label, color = p.faint)
+                        }
                     }
-                    FluxButton(
-                        text = "Connect",
-                        onClick = { nav.navigate(Routes.CONNECT) },
-                        fillWidth = false,
-                    )
                 }
             }
         }
-        Spacer(Modifier.height(14.dp))
+
+        AnimatedVisibility(
+            visible = gestureHud != null,
+            enter = fadeIn(androidx.compose.animation.core.tween(if (reduced) 0 else 120)),
+            exit = fadeOut(androidx.compose.animation.core.tween(if (reduced) 0 else 160)),
+            modifier = Modifier.align(Alignment.Center),
+        ) {
+            GestureHud(text = gestureHud ?: "")
+        }
+
+        // ---- Bottom overlay ----
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+        ) {
+            if (!connected) {
+                FluxCard(
+                    accent = p.accent,
+                    padding = PaddingValues(14.dp),
+                    onClick = { nav.navigate(Routes.CONNECT) },
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        FluxIcon(FluxGlyph.BLUETOOTH, tint = p.accent, size = 18.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text("No input link", style = FluxType.subtitle, color = p.text)
+                            Text(
+                                "Connect a computer to make this surface live.",
+                                style = FluxType.bodySmall,
+                                color = p.muted,
+                            )
+                        }
+                        FluxButton(
+                            text = "Connect",
+                            onClick = { nav.navigate(Routes.CONNECT) },
+                            fillWidth = false,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(10.dp))
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                MouseKey(
+                    label = "LEFT",
+                    glyph = FluxGlyph.MOUSE,
+                    modifier = Modifier.weight(1.25f),
+                    enabled = connected,
+                    onPress = {
+                        appVm.mouseButton(0x01, true)
+                        feedback.click()
+                    },
+                    onRelease = { appVm.mouseButton(0x01, false) },
+                )
+                MouseKey(
+                    label = "MIDDLE",
+                    glyph = FluxGlyph.GRID,
+                    modifier = Modifier.weight(0.85f),
+                    enabled = connected,
+                    onPress = {
+                        appVm.mouseButton(0x04, true)
+                        feedback.click()
+                    },
+                    onRelease = { appVm.mouseButton(0x04, false) },
+                )
+                MouseKey(
+                    label = "RIGHT",
+                    glyph = FluxGlyph.MOUSE,
+                    modifier = Modifier.weight(1.25f),
+                    enabled = connected,
+                    onPress = {
+                        appVm.mouseButton(0x02, true)
+                        feedback.click()
+                    },
+                    onRelease = { appVm.mouseButton(0x02, false) },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GestureHud(text: String) {
+    val p = Flux.current
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(p.accent.copy(alpha = 0.16f))
+            .border(1.dp, p.accent.copy(alpha = 0.55f), CircleShape)
+            .padding(horizontal = 18.dp, vertical = 10.dp),
+    ) {
+        Text(
+            text.uppercase(),
+            style = FluxType.label,
+            color = p.accent,
+        )
+    }
+}
+
+@Composable
+private fun Pill(text: String, onClick: (() -> Unit)? = null) {
+    val p = Flux.current
+    Box(
+        modifier = Modifier
+            .clip(CircleShape)
+            .background(p.elevated.copy(alpha = 0.85f))
+            .border(1.dp, p.outline.copy(alpha = 0.9f), CircleShape)
+            .then(
+                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier,
+            )
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    ) {
+        Text(text, style = FluxType.mono.copy(fontSize = 9.5.sp), color = p.muted)
     }
 }
 
@@ -411,13 +594,13 @@ private fun MouseKey(
     var pressed by remember { mutableStateOf(false) }
     Box(
         modifier = modifier
-            .height(56.dp)
-            .clip(RoundedCornerShape(15.dp))
-            .background(if (pressed) p.accent.copy(alpha = 0.14f) else p.elevated)
+            .height(60.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (pressed) p.accent.copy(alpha = 0.16f) else p.elevated.copy(alpha = 0.92f))
             .border(
                 1.dp,
                 if (pressed) p.accent.copy(alpha = 0.5f) else p.outline,
-                RoundedCornerShape(15.dp),
+                RoundedCornerShape(18.dp),
             )
             .pointerInput(enabled, label) {
                 if (!enabled) return@pointerInput

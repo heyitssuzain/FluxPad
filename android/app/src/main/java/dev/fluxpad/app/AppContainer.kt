@@ -15,6 +15,7 @@ import dev.fluxpad.core.input.RemoteInputController
 import dev.fluxpad.core.input.TransportCoordinator
 import dev.fluxpad.core.input.UsbDirectHidTransport
 import dev.fluxpad.core.input.usb.UsbAoaTransport
+import dev.fluxpad.core.model.ConnectionState
 import dev.fluxpad.core.model.TransportKind
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,6 +66,27 @@ class AppContainer(context: Context) {
                 )
             }
         }
+        // The computer may connect on its own (it re-opens the HID channel when
+        // the phone comes in range). Adopt that session so the UI reflects it.
+        applicationScope.launch {
+            bluetoothTransport.state.collect { state ->
+                if (state is ConnectionState.Connected && coordinator.activeKind.value == null) {
+                    coordinator.prepare(TransportKind.BLUETOOTH_HID)
+                }
+            }
+        }
+    }
+
+    /**
+     * Registers the HID SDP record as soon as the app is visible.
+     *
+     * A host reads the HID service record while pairing, so the record has to
+     * exist *before* the user pairs. Registering only at connect time leaves
+     * hosts that paired earlier without a HID service, and they then ignore the
+     * HID channel forever.
+     */
+    fun prepareBluetooth() {
+        applicationScope.launch { bluetoothTransport.warmUp() }
     }
 
     fun onUsbAccessoryAttached(accessory: android.hardware.usb.UsbAccessory) {

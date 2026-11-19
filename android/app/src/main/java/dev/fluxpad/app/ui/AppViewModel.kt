@@ -8,6 +8,9 @@ import dev.fluxpad.core.data.AppSettings
 import dev.fluxpad.core.model.ComputerDevice
 import dev.fluxpad.core.model.ConnectionState
 import dev.fluxpad.core.model.DeviceCapabilities
+import dev.fluxpad.core.model.GestureAction
+import dev.fluxpad.core.model.GestureShortcuts
+import dev.fluxpad.core.model.HostOs
 import dev.fluxpad.core.model.KeyChord
 import dev.fluxpad.core.model.TransportKind
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -49,6 +52,13 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
 
     init {
         refresh(showSpinner = true)
+        // Keep the cached adapter state honest when Bluetooth is toggled
+        // outside the app while the dashboard is open.
+        viewModelScope.launch {
+            container.coordinator.connectionState.collect {
+                refresh(showSpinner = false)
+            }
+        }
     }
 
     fun autoReconnectOnce() {
@@ -148,6 +158,21 @@ class AppViewModel(private val container: AppContainer) : ViewModel() {
         container.inputController.tapSequence(chords, gapMs)
 
     fun sendConsumer(usage: Int) = container.inputController.consumer(usage)
+
+    /**
+     * Runs a multitouch gesture on the host. Gestures are ordinary keyboard
+     * shortcuts, so every operating system executes them natively.
+     */
+    fun runGesture(action: GestureAction) {
+        if (action == GestureAction.NONE || !connectionState.value.isConnected) return
+        val os = settings.value?.hostOs ?: HostOs.WINDOWS
+        val chords = GestureShortcuts.chordsFor(action, os)
+        when (chords.size) {
+            0 -> Unit
+            1 -> container.inputController.tapKey(chords.first())
+            else -> container.inputController.tapSequence(chords, gapMs = 40L)
+        }
+    }
 
     fun moveBy(dx: Float, dy: Float) = container.inputController.moveBy(dx, dy)
 

@@ -21,6 +21,7 @@ class MainActivity : ComponentActivity() {
         )
         window.setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         container.handleUsbIntent(intent)
+        container.prepareBluetooth()
         setContent {
             FluxpadApp(container)
         }

@@ -1,9 +1,9 @@
 package dev.fluxpad.core.model
 
 enum class ThemeMode(val label: String) {
-    DARK("Flux Dark"),
-    MIDNIGHT("Midnight"),
-    HIGH_CONTRAST("High contrast"),
+    DARK("Blush"),
+    MIDNIGHT("Cocoa"),
+    HIGH_CONTRAST("Porcelain"),
 }
 
 enum class HostOs(val label: String, val shortLabel: String) {

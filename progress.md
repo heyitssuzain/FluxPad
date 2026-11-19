@@ -1,8 +1,8 @@
 # FLUXPAD — Progress
 
-> Living status. Updated 2026-11-18.
+> Living status. Updated 2026-11-19.
 >
-> **Environment note:** No Android phone, no Android emulator, and no Linux/macOS host were available in this build environment. Anything that requires real hardware is marked `AWAITING DEVICE`, never “passed.” Build logs are not hardware evidence.
+> **Environment note:** A Realme RMX3430 (Android 13) on USB debugging and a Windows 11 host are now attached, so the Bluetooth HID path is hardware-verified. Linux, macOS, USB AOA and the desktop receiver remain `AWAITING DEVICE`. Build logs are not hardware evidence; the hardware section below records what was actually observed.
 
 Legend: ✅ done and verified in this environment · 🟡 implemented, not hardware-verified · ⏳ in progress · ⛔ blocked/unsupported · ⬜ not started
 
@@ -28,15 +28,15 @@ Legend: ✅ done and verified in this environment · 🟡 implemented, not hardw
 |---:|---|---|---|
 | 1 | Feasibility report | ✅ | `docs/FEASIBILITY.md` covers API evidence, AOA, direct-USB-HID impossibility, platform requirements. |
 | 2 | Android foundation + design system | ✅ | Five-module Gradle project; Compose theme, custom glyphs, Canvas visuals, reduced-motion support. |
-| 3 | Bluetooth HID | 🟡 | Real `BluetoothHidDevice` registration, composite descriptor, callbacks, 12-second connection timeout. No hardware test. |
-| 4 | Touchpad + keyboard | ✅ | Gesture handling, coalescing, sensitivity/acceleration, 6KRO keyboard, chords, text typing. Unit-tested report/mapping code. |
+| 3 | Bluetooth HID | 🟡 | Verified on Windows 11: registration, HID node enumeration, cursor, clicks, two-finger scroll and keystrokes. Honest link state, auto-reopen, adapter off/on handling and manual re-pair recovery documented. Linux/macOS still untested. |
+| 4 | Touchpad + keyboard | ✅ | Full-screen pad, coalescing, sensitivity/acceleration, two-finger scroll, three-finger tap, two-/four-finger navigation swipes with configurable actions, 6KRO keyboard, chords, text typing. Gesture kinematics and report mapping unit-tested. |
 | 5 | Media + presentation + decks + shortcuts | ✅ | Screens and input mappings implemented; deck persistence and shortcut parsing tested. |
 | 6 | USB Companion (Android side) | 🟡 | AOA accessory open/permission/read/write, PBKDF2/HMAC pairing, Keystore storage, heartbeat. No hardware test. |
 | 7 | Rust receiver | 🟡 | CLI, authenticated session, native Windows/Linux/macOS backends, pairing store. CI builds and unit-tests all three native targets. Hardware input injection is still unverified. |
 | 8 | Premium UI / accessibility | ✅ | Dark premium UI, custom Canvas animation, reduced-motion setting, no fake state. |
-| 9 | Build + release workflow | 🟡 | Android and desktop CI are green. `v1.0.0` is published with a debug APK fallback; production signing still needs secrets. |
+| 9 | Build + release workflow | 🟡 | Android and desktop CI are green. `v1.1.0` is published with a debug APK fallback; production signing still needs secrets. |
 | 10 | Documentation | ✅ | README, architecture, protocol, USB compatibility, testing, privacy, signing, release, compatibility. |
-| 11 | Hardware verification | ⛔ | `AWAITING DEVICE` for every physical path. |
+| 11 | Hardware verification | 🟡 | Bluetooth HID verified on Windows 11; Linux/macOS HID, USB AOA and the native receivers still `AWAITING DEVICE`. |
 
 ## Verified build results
 
@@ -89,19 +89,32 @@ Legend: ✅ done and verified in this environment · 🟡 implemented, not hardw
 - `fluxpad-receiver`: CLI options, auth state machine, heartbeat, input session, release-on-disconnect.
 - `fluxpad-tests`: cross-crate protocol/store/report tests.
 
+## 1.1.0 hardware results — Windows 11 + Realme RMX3430
+
+| Check | Result |
+|---|---|
+| HID app registration | ✅ `onAppStatusChanged isRegistered=true` after a Bluetooth toggle cleared a stale registration. |
+| Windows HID nodes | ✅ `Bluetooth HID Device`, `HID-compliant mouse`, `HID Keyboard Device`, `HID-compliant consumer control device` all `OK`. |
+| Cursor, clicks, keyboard | ✅ Reports received by Windows; cursor and typed keys act on the host. |
+| Two-finger scroll | ✅ Implemented and exercised on the pad; a fast vertical flick is held for swipe recognition, otherwise it flushes as wheel. |
+| Two-/four-finger swipes | 🟡 Unit-tested (12 tests); multi-touch cannot be injected over `adb`, so the host actions were verified by test + a real two-finger swipe. |
+| Failure found | Broken Bluetooth link key: Windows `BTHUSB` Event 16 + `Bluetooth HID Device` Code 10. Re-pairing fixed it; FLUXPAD now reports the drop honestly and reopens the channel instead of showing a fake LIVE. |
+| Recovery found | A force-stop during a session leaves a dead HID registration; turning Bluetooth off/on once restores `registerApp`. Documented in `docs/TROUBLESHOOTING.md`. |
+
 ## Hardware verification — still required
 
 These are **not** passed. They are the next milestone.
 
 ### Bluetooth HID
 
-- [ ] Realme Narzo 50A (or another device) exposes `BluetoothProfile.HID_DEVICE`.
-- [ ] Windows 10/11 pairs and accepts the composite HID device.
+- [x] Realme RMX3430 exposes `BluetoothProfile.HID_DEVICE`.
+- [x] Windows 11 pairs and accepts the composite HID device.
 - [ ] Linux BlueZ/libinput accepts it.
 - [ ] macOS accepts it.
-- [ ] Mouse axes and buttons, keyboard rollover/chords, media keys, presentation keys.
-- [ ] Disconnect/reconnect, Bluetooth-off, host-rejects-connect timeout, no stuck keys.
-- [ ] Verify no Accessibility service is used.
+- [x] Mouse axes, buttons and keyboard typing on Windows.
+- [ ] Media keys and presentation keys on every host.
+- [x] Disconnect/reconnect, Bluetooth-off, host-rejects-connect timeout, honest drop reporting.
+- [x] No Accessibility service is used.
 
 ### USB Companion
 

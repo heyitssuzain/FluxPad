@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -70,7 +71,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlin.math.abs
 
-/** Full-bleed brand background: two soft light fields, a fine dot grid, no images. */
+/** Full-bleed brand background: warm clay fields in beige and blush, no imagery. */
 @Composable
 fun FluxBackground(
     modifier: Modifier = Modifier,
@@ -85,37 +86,29 @@ fun FluxBackground(
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
+            val strength = if (p.isLight) 1f else 0.5f
             drawRect(
                 brush = Brush.radialGradient(
-                    colors = listOf(p.accent.copy(alpha = 0.10f), Color.Transparent),
-                    center = Offset(w * 0.08f, -h * 0.04f),
-                    radius = w * 1.15f,
+                    colors = listOf(p.accentSoft.copy(alpha = 0.55f * strength), Color.Transparent),
+                    center = Offset(w * 0.10f, -h * 0.02f),
+                    radius = w * 1.1f,
                 ),
             )
             drawRect(
                 brush = Brush.radialGradient(
-                    colors = listOf(p.accentSoft.copy(alpha = 0.075f), Color.Transparent),
-                    center = Offset(w * 0.95f, h * 0.78f),
+                    colors = listOf(
+                        Color.White.copy(alpha = 0.75f * strength),
+                        Color.Transparent,
+                    ),
+                    center = Offset(w * 0.92f, h * 0.22f),
+                    radius = w * 0.9f,
+                ),
+            )
+            drawRect(
+                brush = Brush.radialGradient(
+                    colors = listOf(p.accent.copy(alpha = 0.10f * strength), Color.Transparent),
+                    center = Offset(w * 0.5f, h * 1.02f),
                     radius = w * 0.95f,
-                ),
-            )
-            val step = 30.dp.toPx()
-            val dot = 0.8.dp.toPx()
-            val dotColor = Color.White.copy(alpha = if (p.isLight) 0.03f else 0.045f)
-            var y = step / 2
-            while (y < h) {
-                var x = step / 2
-                while (x < w) {
-                    drawCircle(dotColor, dot, Offset(x, y))
-                    x += step
-                }
-                y += step
-            }
-            drawRect(
-                brush = Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = 0.05f), Color.Transparent),
-                    startY = 0f,
-                    endY = 2.dp.toPx(),
                 ),
             )
         }
@@ -132,11 +125,11 @@ fun FluxCard(
     content: @Composable () -> Unit,
 ) {
     val p = Flux.current
-    val shape = RoundedCornerShape(20.dp)
+    val shape = RoundedCornerShape(24.dp)
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale = pressScale(pressed && onClick != null)
-    val borderColor = accent?.copy(alpha = 0.35f) ?: Color.White.copy(alpha = if (p.isLight) 0.2f else 0.075f)
+    val tint = accent ?: p.accent
     Box(
         modifier = modifier
             .graphicsLayer {
@@ -144,29 +137,38 @@ fun FluxCard(
                 scaleY = scale
                 transformOrigin = TransformOrigin(0.5f, 0.5f)
             }
-            .clip(shape)
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(p.elevated.copy(alpha = 0.94f), p.surface.copy(alpha = 0.92f)),
-                ),
+            // Clay: one soft warm drop shadow, then a lit top edge inside.
+            .shadow(
+                elevation = if (p.isLight) 10.dp else 12.dp,
+                shape = shape,
+                ambientColor = p.accent.copy(alpha = if (p.isLight) 0.20f else 0.15f),
+                spotColor = Color(0xFFA98C79).copy(alpha = if (p.isLight) 0.30f else 0.45f),
             )
-            .border(1.dp, borderColor, shape)
-            .then(
-                if (accent != null) {
-                    Modifier.drawBehind {
-                        drawCircle(
-                            brush = Brush.radialGradient(
-                                listOf(accent.copy(alpha = 0.10f), Color.Transparent),
-                                center = Offset(size.width * 0.92f, 0f),
-                                radius = size.width * 0.7f,
-                            ),
-                            radius = size.width * 0.7f,
-                            center = Offset(size.width * 0.92f, 0f),
-                        )
-                    }
-                } else {
-                    Modifier
-                },
+            .clip(shape)
+            .background(Brush.verticalGradient(listOf(p.elevated, p.surface)))
+            .drawBehind {
+                drawRect(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = if (p.isLight) 0.85f else 0.10f),
+                            Color.Transparent,
+                        ),
+                        center = Offset(size.width * 0.18f, -size.height * 0.30f),
+                        radius = size.width * 1.05f,
+                    ),
+                )
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        colors = listOf(Color.Transparent, tint.copy(alpha = 0.08f)),
+                        startY = size.height * 0.55f,
+                        endY = size.height,
+                    ),
+                )
+            }
+            .border(
+                width = 1.dp,
+                color = Color.White.copy(alpha = if (p.isLight) 0.7f else 0.08f),
+                shape = shape,
             )
             .then(
                 if (onClick != null) {

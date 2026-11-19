@@ -17,10 +17,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
@@ -50,6 +53,8 @@ import dev.fluxpad.app.util.openAppNotificationSettings
 import dev.fluxpad.app.util.openAppSettings
 import dev.fluxpad.app.util.openBluetoothSettings
 import dev.fluxpad.core.data.AppSettings
+import dev.fluxpad.core.data.gestureBindings
+import dev.fluxpad.core.data.withGestures
 import dev.fluxpad.core.design.Flux
 import dev.fluxpad.core.design.FluxButton
 import dev.fluxpad.core.design.FluxButtonVariant
@@ -65,6 +70,9 @@ import dev.fluxpad.core.design.FluxType
 import dev.fluxpad.core.design.ScreenHeader
 import dev.fluxpad.core.design.SectionLabel
 import dev.fluxpad.core.model.HapticLevel
+import dev.fluxpad.core.model.GestureAction
+import dev.fluxpad.core.model.GestureBindings
+import dev.fluxpad.core.model.GestureShortcuts
 import dev.fluxpad.core.model.HostOs
 import dev.fluxpad.core.model.KeyboardLayout
 import dev.fluxpad.core.model.ReducedMotionMode
@@ -93,6 +101,8 @@ fun SettingsScreen(
     val notificationsGranted = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
     var confirm by remember { mutableStateOf<String?>(null) }
+    var gesturePick by remember { mutableStateOf<GestureSlot?>(null) }
+    val gestures = settings.gestureBindings
 
     val btPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -234,6 +244,97 @@ fun SettingsScreen(
         }
 
         Spacer(Modifier.height(18.dp))
+        SettingsSection("GESTURES") {
+            SettingToggle(
+                title = "Multitouch gestures",
+                body = "Two- and four-finger swipes on the pad surface.",
+                checked = gestures.enabled,
+                onChange = { value -> update { it.withGestures { g -> g.copy(enabled = value) } } },
+            )
+            SettingDivider()
+            SettingToggle(
+                title = "Two-finger navigation",
+                body = "Swipe up or down; two fingers still scroll as usual.",
+                checked = gestures.twoFingerNavigation,
+                onChange = { value ->
+                    update { it.withGestures { g -> g.copy(twoFingerNavigation = value) } }
+                },
+            )
+            SettingDivider()
+            SettingGestureRow(
+                title = "Swipe down",
+                action = gestures.twoDown,
+                os = settings.hostOs,
+                onClick = { gesturePick = GestureSlot.TWO_DOWN },
+            )
+            SettingDivider()
+            SettingGestureRow(
+                title = "Swipe up",
+                action = gestures.twoUp,
+                os = settings.hostOs,
+                onClick = { gesturePick = GestureSlot.TWO_UP },
+            )
+            SettingDivider()
+            SettingToggle(
+                title = "Four-finger shortcuts",
+                body = "Each direction is bound independently.",
+                checked = gestures.fourFingerShortcuts,
+                onChange = { value ->
+                    update { it.withGestures { g -> g.copy(fourFingerShortcuts = value) } }
+                },
+            )
+            SettingDivider()
+            SettingGestureRow(
+                title = "Four fingers up",
+                action = gestures.fourUp,
+                os = settings.hostOs,
+                onClick = { gesturePick = GestureSlot.FOUR_UP },
+            )
+            SettingDivider()
+            SettingGestureRow(
+                title = "Four fingers down",
+                action = gestures.fourDown,
+                os = settings.hostOs,
+                onClick = { gesturePick = GestureSlot.FOUR_DOWN },
+            )
+            SettingDivider()
+            SettingGestureRow(
+                title = "Four fingers left",
+                action = gestures.fourLeft,
+                os = settings.hostOs,
+                onClick = { gesturePick = GestureSlot.FOUR_LEFT },
+            )
+            SettingDivider()
+            SettingGestureRow(
+                title = "Four fingers right",
+                action = gestures.fourRight,
+                os = settings.hostOs,
+                onClick = { gesturePick = GestureSlot.FOUR_RIGHT },
+            )
+            SettingDivider()
+            SettingSlider(
+                title = "Swipe sensitivity",
+                value = settings.gestureSensitivity,
+                range = 0.6f..1.8f,
+                suffix = "x",
+                onCommit = { value ->
+                    update { it.withGestures { g -> g.copy(sensitivity = value) } }
+                },
+            )
+            SettingDivider()
+            SettingAction(
+                title = "Restore default gestures",
+                body = "desktop down, previous window up, standard four-finger set.",
+                action = "Reset",
+                tone = p.muted,
+                onClick = {
+                    update { it.withGestures { GestureBindings.DEFAULT } }
+                    feedback.click()
+                },
+            )
+        }
+
+        Spacer(Modifier.height(18.dp))
         SettingsSection("FEEDBACK") {
             SettingChoice(
                 title = "Haptics",
@@ -355,6 +456,36 @@ fun SettingsScreen(
             )
         }
         Spacer(Modifier.height(24.dp))
+    }
+
+    gesturePick?.let { slot ->
+        FluxDialog(
+            title = slot.title,
+            body = "Choose the shortcut sent to ${settings.hostOs.label}. Every option is a native host shortcut.",
+            confirmText = "Done",
+            onConfirm = { gesturePick = null },
+            onDismiss = { gesturePick = null },
+            content = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    GestureAction.entries.forEach { action ->
+                        GesturePickerRow(
+                            action = action,
+                            os = settings.hostOs,
+                            selected = gestures.actionForSlot(slot) == action,
+                            onClick = {
+                                update { it.withGestures { g -> g.withSlot(slot, action) } }
+                                feedback.click()
+                                gesturePick = null
+                            },
+                        )
+                    }
+                }
+            },
+        )
     }
 
     confirm?.let { key ->
@@ -521,5 +652,118 @@ private fun SettingAction(
                 .background(tone.copy(alpha = 0.08f))
                 .padding(horizontal = 9.dp, vertical = 7.dp),
         )
+    }
+}
+
+/** Which binding a picker dialog is editing. */
+private enum class GestureSlot(val title: String) {
+    TWO_UP("Two-finger swipe up"),
+    TWO_DOWN("Two-finger swipe down"),
+    FOUR_UP("Four-finger swipe up"),
+    FOUR_DOWN("Four-finger swipe down"),
+    FOUR_LEFT("Four-finger swipe left"),
+    FOUR_RIGHT("Four-finger swipe right"),
+}
+
+private fun GestureBindings.actionForSlot(slot: GestureSlot): GestureAction = when (slot) {
+    GestureSlot.TWO_UP -> twoUp
+    GestureSlot.TWO_DOWN -> twoDown
+    GestureSlot.FOUR_UP -> fourUp
+    GestureSlot.FOUR_DOWN -> fourDown
+    GestureSlot.FOUR_LEFT -> fourLeft
+    GestureSlot.FOUR_RIGHT -> fourRight
+}
+
+private fun GestureBindings.withSlot(slot: GestureSlot, action: GestureAction): GestureBindings =
+    when (slot) {
+        GestureSlot.TWO_UP -> copy(twoUp = action)
+        GestureSlot.TWO_DOWN -> copy(twoDown = action)
+        GestureSlot.FOUR_UP -> copy(fourUp = action)
+        GestureSlot.FOUR_DOWN -> copy(fourDown = action)
+        GestureSlot.FOUR_LEFT -> copy(fourLeft = action)
+        GestureSlot.FOUR_RIGHT -> copy(fourRight = action)
+    }
+
+@Composable
+private fun SettingGestureRow(
+    title: String,
+    action: GestureAction,
+    os: HostOs,
+    onClick: () -> Unit,
+) {
+    val p = Flux.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = FluxType.subtitle, color = p.text)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                if (action == GestureAction.NONE) {
+                    "Off"
+                } else {
+                    "${action.label} · ${GestureShortcuts.hint(action, os)}"
+                },
+                style = FluxType.bodySmall,
+                color = if (action == GestureAction.NONE) p.faint else p.muted,
+            )
+        }
+        Spacer(Modifier.width(10.dp))
+        Text(
+            "EDIT",
+            style = FluxType.label,
+            color = p.accent,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(p.accent.copy(alpha = 0.08f))
+                .padding(horizontal = 9.dp, vertical = 7.dp),
+        )
+    }
+}
+
+@Composable
+private fun GesturePickerRow(
+    action: GestureAction,
+    os: HostOs,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    val p = Flux.current
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(
+                if (selected) p.accent.copy(alpha = 0.10f) else androidx.compose.ui.graphics.Color.Transparent,
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(action.label, style = FluxType.subtitle, color = p.text)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                if (action == GestureAction.NONE) {
+                    action.description
+                } else {
+                    "${action.description}  ${GestureShortcuts.hint(action, os)}"
+                },
+                style = FluxType.bodySmall,
+                color = if (selected) p.accent else p.muted,
+            )
+        }
+        if (selected) {
+            Box(
+                Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(p.accent),
+            )
+        }
     }
 }

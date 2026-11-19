@@ -34,6 +34,15 @@ cargo build --release -p fluxpad-receiver --locked
 
 Review the hardware status in [progress.md](../progress.md). A release may ship with `AWAITING DEVICE` markers, but release notes must not describe unverified hardware behavior as confirmed.
 
+### The debug fallback is a supported artifact
+
+When the four signing secrets below are absent, `release.yml` publishes
+`fluxpad-<version>-debug.apk` and emits a warning. That is intentional: the APK
+is installable and exercises the same code, but its certificate is the Android
+debug key. The release notes must say so, and users must not install it beside
+another FLUXPAD build — only one app can hold the HID Device role. Point users at
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md) for install and pairing recovery.
+
 Check that no secrets are tracked:
 
 ```bash

@@ -32,3 +32,4 @@ Thumbs.db
 .env.*
 *.pem
 *.p12
+.tmp/

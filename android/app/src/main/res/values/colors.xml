@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="fluxpad_background">#090B0F</color>
-    <color name="fluxpad_accent">#42D9FF</color>
-    <color name="fluxpad_on_accent">#04141A</color>
-    <color name="ic_launcher_background">#090B0F</color>
+    <color name="fluxpad_background">#F1E8DE</color>
+    <color name="fluxpad_accent">#DB8496</color>
+    <color name="fluxpad_on_accent">#FFFBF8</color>
+    <color name="ic_launcher_background">#F1E8DE</color>
 </resources>
